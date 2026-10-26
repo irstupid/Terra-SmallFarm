@@ -2,6 +2,7 @@
 
 this is a small farming game to run in your terminal build with c and ncurses
 it only works on posix systems
+only dependencies are ncurses and the c standard library
 
 it is currently not finished, I still want to add file saving/loading and a little polish.
 
