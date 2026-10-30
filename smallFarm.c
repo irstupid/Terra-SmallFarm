@@ -25,6 +25,8 @@ typedef enum {
 	TILE_LETTUCE
 } Tile;
 
+const int AUTOSAVE_TIME = 60 * 60 * 5;
+
 typedef struct {
 	Tile* tiles;
 	void** data;
@@ -148,52 +150,7 @@ World* allocateWorld(int width, int height) {
 	return world;
 }
 
-//void saveState(World* world, Inventory* inventory, char* name) {
-//	FILE* file = fopen(name, "wb");
-//	uint16_t items[ITEM_COUNT];
-//	for(int i = 0; i < ITEM_COUNT; i++) {
-//		items[i] = inventory->items[i];
-//	}
-//	fwrite(items, sizeof(uint16_t), ITEM_COUNT, file);
-//	uint16_t money = inventory->money;
-//	fwrite(&money, sizeof(uint16_t), 1, file);
-//	uint16_t size[2] = {world->width, world->height};
-//	fwrite(size, sizeof(uint16_t), 2, file);
-//	uint16_t tiles[world->width * world->height];
-//	for(int i = 0; i < world->width * world->height; i++) {
-//		tiles[i] = world->tiles[i];
-//	}
-//	fwrite(tiles, sizeof(uint16_t), world->width * world->height, file);
-//	for(int i = 0; i < world->width * world->height; i++) {
-//		if(world->data[i] != NULL) {
-//			uint16_t index = i;
-//			fwrite(&index, sizeof(uint16_t), 1, file);
-//			int dataSize = 0;
-//			uint16_t data[8]; //arbitrary buffer size
-//			switch(world->tile[i]) {
-//				case TILE_CARROT:
-//					dataSize = 2;
-//					data[0] = *((CarrotData*)world->data[i])->growthStage;
-//					data[1] = *((CarrotData*)world->data[i])->growthTime;
-//				break;
-//				case TILE_STRAWBERRY:
-//					dataSize = 3;
-//					data[0] = *((CarrotData*)world->data[i])->growthStage;
-//					data[1] = *((CarrotData*)world->data[i])->growthTime;
-//					data[3] = *((CarrotData*)world->data[i])->timesHarvested;
-//				break;
-//				case TILE_LETTUCE:
-//					dataSize = 3;
-//					data[0] = *((CarrotData*)world->data[i])->growthStage;
-//					data[1] = *((CarrotData*)world->data[i])->growthTime;
-//					data[2] = *((CarrotData*)world->data[i])->quadrent;
-//				break;
-//			}
-//			fwrite(data, sizeof(uint16_t), dataSize, file);
-//		}
-//	}
-//	fclose(file);
-//}
+#include "save.c"
 
 #include "draw.c"
 
@@ -228,6 +185,16 @@ bool placeLettuce(World* world, int i, int growthStage, int quadrent) {
 	world->data[i] = smock(sizeof(LettuceData));
 	*((LettuceData*)world->data[i]) = (LettuceData){.growthStage = growthStage, .quadrent = quadrent};
 	return true;
+}
+
+bool isTileEmpty(World* w, int x, int y) {
+	if(x < 0 || x >= w->width || y < 0 || y >= w->height) {
+		return false;
+	}
+	if(w->tiles[x + y * w->width] == TILE_EMPTY) {
+		return true;
+	}
+	return false;
 }
 
 bool processInput(int c, World* world, Cell* player, Inventory* inventory, Menu* menu) {
@@ -269,6 +236,19 @@ bool processInput(int c, World* world, Cell* player, Inventory* inventory, Menu*
 				void* data = world->data[player->x + player->y * world->width];
 
 				if(*tile == TILE_CRYSTAL) {
+					if     (isTileEmpty(world, player->x, player->y + 1)) {
+						world->tiles[(player->x) + (player->y + 1) * world->width] = TILE_CRYSTAL;
+						world->tiles[player->x + player->y * world->width] = TILE_EMPTY;
+					} else if (isTileEmpty(world, player->x + 1, player->y)) {
+						world->tiles[(player->x + 1) + (player->y) * world->width] = TILE_CRYSTAL;
+						world->tiles[player->x + player->y * world->width] = TILE_EMPTY;
+					} else if(isTileEmpty(world, player->x, player->y - 1)) {
+						world->tiles[(player->x) + (player->y - 1) * world->width] = TILE_CRYSTAL;
+						world->tiles[player->x + player->y * world->width] = TILE_EMPTY;
+					} else if(isTileEmpty(world, player->x - 1, player->y)) {
+						world->tiles[(player->x - 1) + (player->y) * world->width] = TILE_CRYSTAL;
+						world->tiles[player->x + player->y * world->width] = TILE_EMPTY;
+					}
 					break;
 				}
 				if(*tile == TILE_CARROT) {
@@ -382,6 +362,11 @@ bool processInput(int c, World* world, Cell* player, Inventory* inventory, Menu*
 }
 
 void cleanup(World* world) {
+	for(int i = 0; i < world->width * world->height; i++) {
+		if(world->data[i] != NULL) {
+			free(world->data[i]);
+		}
+	}
 	free(world);
 	cleanUpDraw();
 }
@@ -488,25 +473,28 @@ void update(World* world, Cell* player, Inventory* inventory, Menu* menu) {
 }
 
 int main(int argc, char** argv) {
-//	if(argc != 2) {
-//		printf("invalid arguments!\n");
-//		return 1;
-//	}
-
+	if(argc != 2) {
+		printf("invalid arguments! please add a save file name argument (if the file does not exist it will be created)\n");
+		return 1;
+	}
 	setupNcurses();
-
 	struct timespec frametime = {0, 16666667};
 
-	World* world = allocateWorld(18, 10);
-	newWorld(world);
+	int autosaveTimer = 0;
 
 	Cell player = {0, 0};
-	Inventory inventory = {.money = 100};
-
 	Menu menu = {.active = false};
+	Inventory inventory;
+	World* world = load(&inventory, argv[1]);
+	for(int x = 0; x < world->width; x++) {
+		for(int y = 0; y < world->height; y++) {
+			if(world->tiles[x + y * world->width] == TILE_CRYSTAL) {
+				player = (Cell){x, y};
+			}
+		}
+	}
 
 	findAnchor(world);
-
 	while(1) {
 		if(processInput(getch(), world, &player, &inventory, &menu)) {
 			break;
@@ -519,9 +507,14 @@ int main(int argc, char** argv) {
 		finishDraw();
 
 		nanosleep(&frametime, NULL);
+		autosaveTimer++;
+		if(autosaveTimer >= AUTOSAVE_TIME) {
+			save(world, &inventory, argv[1]);
+			autosaveTimer = 0;
+		}
 	}
 	
-	//saveState(world, &inventory, argv[1]);
+	save(world, &inventory, argv[1]);
 	cleanup(world);
 	return 0;
 }

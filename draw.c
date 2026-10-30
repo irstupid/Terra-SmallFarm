@@ -199,7 +199,6 @@ void drawMenu(World* world, Menu* menu, Inventory* inventory) {
 			mvaddch(anchory + 1 + menu->select, anchorx, '>');
 		}
 	} else {
-		mvaddstr(anchory, anchorx, "                    ");
 		if(!menu->shop) {
 			mvaddstr(anchory, anchorx, ITEM_NAME[INVENTORY_ITEMS[menu->select]]);
 		} else {

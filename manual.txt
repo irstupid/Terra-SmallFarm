@@ -4,7 +4,9 @@ you can move arround with wasd or arrow keys, open/close your inventory with q, 
 if you open your inventory while standing on the crystal it opens the shop, where you can use e to buy things with your money or sell your produce
 
 to farm things, place seeds on farmland and they will grow over time
-strawberries can be harvested twice and lettuce needs a 2x2 square to grow
+strawberries can be harvested thrice and lettuce needs a 2x2 square to grow
 
 if you want to remove a tile you can select one of the produces and place it
+you can move the crystal by tring to place a tile on it while it as 3 of its adjacent spaces blocked
 you can press x to close the game
+the game autosaves every 5 minutes
